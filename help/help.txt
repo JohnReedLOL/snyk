@@ -43,6 +43,8 @@ Options:
                        vulnerabilities. Can be used alongside `--file` and a
                        path to the image's Dockerfile for more detailed
                        remediation advice.
+  --file ............. Specify path to Dockerfile to get base image remediation advice.
+  --user-layer ....... Display vulnerabilities introduced by Docker user layer only.
   --policy-path....... Manually pass a path to a policy file.
   --insecure ......... Ignore unknown certificate authorities.
   --json ............. Return results in JSON format.

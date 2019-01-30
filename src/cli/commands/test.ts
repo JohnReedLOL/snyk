@@ -249,16 +249,42 @@ function displayResult(res, options) {
   }
   let summary = testedInfoText + ', ' + chalk.red.bold(vulnCountText);
 
+  if (options['user-layer'] && res.vulnerabilities) {
+    res.vulnerabilities =  res.vulnerabilities.filter((vuln) => (vuln.dockerfileInstruction));
+    let userUniqueCount = 0;
+    const seen = {};
+    userUniqueCount = res.vulnerabilities.reduce((acc, curr) => {
+      if (!seen[curr.id]) {
+        seen[curr.id] = true;
+        acc++;
+      }
+      return acc;
+    }, 0);
+    const userLayerVulnText = userUniqueCount === 1 ? 'vulnerability' : 'vulnerabilities';
+    const userLayerText = '\nOut of which ' + chalk.bold.red(`${userUniqueCount} ${userLayerVulnText}`) +
+    ' introduced in the Docker user layer.';
+    summary += userLayerText;
+  }
+
   if (WIZARD_SUPPORTED_PMS.indexOf(packageManager) > -1) {
     summary += chalk.bold.green('\n\nRun `snyk wizard` to address these issues.');
   }
 
   if (options.docker &&
-    !options.file &&
     (config.disableSuggestions !== 'true')) {
-    dockerSuggestion += chalk.bold.white('\n\nPro tip: use `--file` option to get base image remediation advice.' +
-      `\nExample: $ snyk test --docker ${options.path} --file=path/to/Dockerfile` +
-      '\n\nTo remove this message in the future, please run `snyk config set disableSuggestions=true`');
+    const optOutSuggestions =
+    '\n\nTo remove this message in the future, please run `snyk config set disableSuggestions=true`';
+    if (!options.file) {
+      dockerSuggestion += chalk.bold.white('\n\nPro tip: use `--file` option to get base image remediation advice.' +
+      `\nExample: $ snyk test --docker ${options.path} --file=path/to/Dockerfile`);
+    }
+    if (!options['user-layer']) {
+      dockerSuggestion +=
+      chalk.bold.white('\n\nNew flag: use `--user-layer` to display user layer vulnerabilites only.');
+    }
+    if (!options.file || !options['user-layer']) {
+      dockerSuggestion += optOutSuggestions;
+    }
   }
 
   const vulns = res.vulnerabilities || [];
@@ -272,8 +298,9 @@ function displayResult(res, options) {
     .filter((vuln) => (vuln.metadata.packageManager !== 'upstream'));
   const binariesSortedGroupedVulns = sortedGroupedVulns
     .filter((vuln) => (vuln.metadata.packageManager === 'upstream'));
+
   const groupedVulnInfoOutput = filteredSortedGroupedVulns.map((vuln) => formatIssues(vuln, options));
-  const groupedDockerBinariesVulnInfoOutput = (res.docker && res.docker.binariesVulns) ?
+  const groupedDockerBinariesVulnInfoOutput = (res.docker && binariesSortedGroupedVulns.length) ?
     formatDockerBinariesIssues(binariesSortedGroupedVulns, res.docker.binariesVulns, options) : [];
 
   const body =
@@ -299,8 +326,9 @@ function createDockerBinaryHeading(pkgInfo) {
   const binaryName = pkgInfo.pkg.name;
   const binaryVersion = pkgInfo.pkg.version;
   const numOfVulns = _.values(pkgInfo.issues).length;
+  const vulnCountText = numOfVulns > 1 ? 'vulnerabilities' : 'vulnerability';
   return numOfVulns ?
-    chalk.bold.white(`------------ Detected ${numOfVulns} vulnerabilities` +
+    chalk.bold.white(`------------ Detected ${numOfVulns} ${vulnCountText}` +
       ` for ${binaryName}@${binaryVersion} ------------`, '\n') : '';
 }
 
